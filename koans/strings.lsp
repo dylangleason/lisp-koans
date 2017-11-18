@@ -44,14 +44,14 @@
 
 (define-test test-accessing-individual-characters
   "char literals look like this"
-  (true-or-false? ___ (typep #\a 'character))
-  (true-or-false? ___ (typep "A" 'character))
-  (true-or-false? ___ (typep #\a 'string))
+  (true-or-false? t (typep #\a 'character))
+  (true-or-false? nil (typep "A" 'character))
+  (true-or-false? nil (typep #\a 'string))
   "char is used to access individual characters"
   (let ((my-string "Cookie Monster"))
     (assert-equal (char my-string 0) #\C)
     (assert-equal (char my-string 3) #\k)
-    (assert-equal (char my-string 7) ___)))
+    (assert-equal (char my-string 7) #\M)))
 
 
 (define-test test-concatenating-strings
@@ -59,19 +59,19 @@
   (let ((a "this")
         (b "is")
         (c "unwieldy"))
-    (assert-equal ___ (concatenate 'string a " " b " " c))))
+    (assert-equal "this is unwieldy" (concatenate 'string a " " b " " c))))
 
 
 (define-test test-searching-for-characters
     "you can use position to detect characters in strings
      (or elements of sequences)"
-  (assert-equal ___ (position #\b "abc"))
-  (assert-equal ___ (position #\c "abc"))
-  (assert-equal ___ (find #\d "abc")))
+  (assert-equal 1 (position #\b "abc"))
+  (assert-equal 2 (position #\c "abc"))
+  (assert-equal nil (find #\d "abc")))
 
 
 (define-test test-finding-substrings
     "search finds subsequences"
   (let ((title "A supposedly fun thing I'll never do again"))
     (assert-equal 2 (search "supposedly" title))
-    (assert-equal 12 (search "CHANGETHISWORD" title))))
+    (assert-equal 12 (search " fun" title))))

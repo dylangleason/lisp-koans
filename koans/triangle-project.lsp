@@ -17,9 +17,28 @@
 
 (define-condition triangle-error  (error) ())
 
-(defun triangle (a b c)
-  :write-me)
+(defun isoscelesp (a b c)
+  (or (= a b) (= a c) (= b c)))
 
+(defun contains-zerop (&rest sides)
+  (member 0 sides))
+
+(defun contains-negativep (&rest sides)
+  (member t (mapcar #'(lambda (x) (< x 0)) sides)))
+
+(defun invalid-isoscelesp (a b c)
+  (and (isoscelesp a b c)
+       (= 2 (count (min a b c) (list a b c)))))
+
+(defun triangle (a b c)
+  (cond ((or (contains-zerop a b c)
+             (contains-negativep a b c)
+             (invalid-isoscelesp a b c))
+         (error 'triangle-error))
+        ((= a b c) :equilateral)
+        ((isoscelesp a b c) :isosceles)
+        ((not (= a b c)) :scalene)
+        (t (error 'triangle-error))))
 
 (define-test test-equilateral-triangles-have-equal-sides
     (assert-equal :equilateral (triangle 2 2 2))

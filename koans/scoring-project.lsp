@@ -49,9 +49,45 @@
 ;
 ; Your goal is to write the score method.
 
+(defconstant +vals-per-set+ 3)
+(defconstant +points-per-ones-set+ 1000)
+(defconstant +points-per-set-multiplier+ 100)
+(defconstant +points-per-one+ 100)
+(defconstant +points-per-five+ 50)
+(defconstant +points-per-other+ 0)
+
+(defun count-sides (dice)
+  (let ((nums-hash (make-hash-table :test #'eql)))
+    (dolist (num dice)
+      (let ((count (gethash num nums-hash 0)))
+        (setf (gethash num nums-hash) (incf count))))
+    nums-hash))
+
+(defun score-num (num count points-per-num)
+  (let ((calc-points (lambda (new-count) (* new-count points-per-num)))
+        (points-per-set (if (= num 1)
+                            +points-per-ones-set+
+                            (* num +points-per-set-multiplier+))))
+    (cond ((= count +vals-per-set+) points-per-set)
+          ((> count +vals-per-set+)
+           (+ points-per-set (funcall calc-points (- count 3))))
+          (t (funcall calc-points count)))))
+
 (defun score (dice)
-  ; You need to write this method
-)
+  (let ((total 0)
+        (counts (count-sides dice)))
+    (loop for key being the hash-keys of counts
+       do (let ((count (gethash key counts)))
+            (cond ((= key 1)
+                   (setf total
+                         (+ total (score-num key count +points-per-one+))))
+                  ((= key 5)
+                   (setf total
+                         (+ total (score-num key count +points-per-five+))))
+                  (t
+                   (setf total
+                         (+ total (score-num key count +points-per-other+)))))))
+    total))
 
 (define-test test-score-of-an-empty-list-is-zero
     (assert-equal 0 (score nil)))

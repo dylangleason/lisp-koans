@@ -76,17 +76,14 @@
 (defun score (dice)
   (let ((total 0)
         (counts (count-sides dice)))
-    (loop for key being the hash-keys of counts
-       do (let ((count (gethash key counts)))
-            (cond ((= key 1)
-                   (setf total
-                         (+ total (score-num key count +points-per-one+))))
-                  ((= key 5)
-                   (setf total
-                         (+ total (score-num key count +points-per-five+))))
-                  (t
-                   (setf total
-                         (+ total (score-num key count +points-per-other+)))))))
+    (loop for num being the hash-keys of counts
+       using (hash-value count)
+       do (cond ((= num 1)
+                 (setf total (+ total (score-num num count +points-per-one+))))
+                ((= num 5)
+                 (setf total (+ total (score-num num count +points-per-five+))))
+                (t
+                 (setf total (+ total (score-num num count +points-per-other+))))))
     total))
 
 (define-test test-score-of-an-empty-list-is-zero

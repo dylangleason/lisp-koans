@@ -74,16 +74,13 @@
           (t (funcall calc-points count)))))
 
 (defun score (dice)
-  (let ((total 0)
-        (counts (count-sides dice)))
+  (let ((total 0) (points 0) (counts (count-sides dice)))
     (loop for num being the hash-keys of counts
        using (hash-value count)
-       do (cond ((= num 1)
-                 (setf total (+ total (score-num num count +points-per-one+))))
-                ((= num 5)
-                 (setf total (+ total (score-num num count +points-per-five+))))
-                (t
-                 (setf total (+ total (score-num num count +points-per-other+))))))
+       do (cond ((= num 1) (setf points +points-per-one+))
+                ((= num 5) (setf points +points-per-five+))
+                (t (setf points +points-per-other+)))
+         (setf total (+ total (score-num num count points))))
     total))
 
 (define-test test-score-of-an-empty-list-is-zero

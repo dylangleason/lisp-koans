@@ -7,7 +7,7 @@
 ;; Write a player class and a Game class to complete the project.  This
 ;; is a free form assignment, so approach it however you desire.
 
-;; Constants
+;;; Constants
 
 (defconstant +sides-per-die+ 6)
 (defconstant +nums-in-a-set+ 3)
@@ -17,45 +17,65 @@
 (defconstant +points-per-five+ 50)
 (defconstant +points-per-other+ 0)
 
-;; Game objects
+;;; Game objects
 
 (defclass player ()
-  ((name :initarg :name :reader player-name)
-   (points :initform 0 :accessor player-points)))
+  ((name
+    :initarg :name
+    :reader name
+    :documentation "Name of player")
+   (points
+    :initform 0
+    :accessor points
+    :documentation "Number of points assigned to player")))
 
 (defun make-players (num-players)
   (loop for i from 1 to num-players
      collect (make-instance 'player :name (format nil "Player ~d" i))))
 
 (defclass dice ()
-  ((values :reader dice-values :initform nil)))
+  ((numbers
+    :reader numbers
+    :initform nil
+    :documentation "A list of numbers between 1-6")))
 
 (defmethod roll (how-many (object dice))
-  (setf (slot-value object 'values)
+  (setf (slot-value object 'numbers)
         (loop repeat how-many
            collect (+ 1 (random +sides-per-die+)))))
 
 (defclass game ()
-  ((num-players :initarg :num-players)
-   (dice :initform (make-instance 'dice) :reader game-dice)
-   (players :accessor game-players)
-   (current-player :accessor game-current-player)))
+  ((num-players
+    :initarg :num-players
+    :documentation "Number of players in the game")
+   (dice
+    :initform (make-instance 'dice)
+    :reader dice
+    :documentation "Dice for playing the game")
+   (players
+    :reader players
+    :documentation "A list of game players")
+   (current-player
+    :initform 0
+    :documentation "Index of current player in players list")))
 
-(defmethod initialize-instance :after ((g game) &key num-players)
-  (with-accessors ((players game-players)) g
-    (setf players (make-players num-players))
-    (setf (game-current-player g) (first players))))
+(defmethod initialize-instance :after ((game game) &key num-players)
+  (setf (slot-value game 'players)
+        (make-players num-players)))
 
-(defmethod next-player ((g game))
-  "Get the next player turn, round-robin style"
-  ;; (with-accessors ((players game-players)
-  ;;                  (current-player game-current-player)) g
-  ;;   (setf current-player
-  ;;         (nth (mod (+ current-player 1) (length players))
-  ;;              players)))
-  )
+(defmethod current-player ((game game))
+  "Get the current player for the game"
+  (nth (slot-value game 'current-player) (players game)))
 
-;; Scoring routines
+(defmethod next-player ((game game))
+  "Get the next player for the game"
+  (with-slots ((players players)
+               (current-player current-player)) game
+    (let ((index (mod (+ current-player 1) (length players))))
+      (setf current-player index)
+      (nth index players))))
+
+;;; Scoring procedures
 
 (defun count-sides (dice)
   (let ((nums-hash (make-hash-table :test #'eql)))
@@ -84,21 +104,23 @@
          (setf total (+ total (score-num num count points))))
     total))
 
-;; Game routines
+;; Game procedures
 
 (defun display-current-player (game)
   "Displays the current player."
-  (let ((player (game-current-player game)))
-    (format t "The current player is: ~a~%" (player-name player))))
+  (let ((player (current-player game)))
+    (format t "The current player is: ~a~%" (name player))))
 
-(defun display-score (game)
+(defun display-scores (game)
   "Displays the current score for each player in a tabular format."
-  (dolist (p (game-players game))
-    (format t "~a ~4d~%" (player-name p) (player-points p))))
+  (dolist (player (players game))
+    (format t "~a ~4d~%" (name player) (points player))))
 
 (defun roll-dice (game)
   "Roll the game dice for the current player and add points"
-  )
+  (let ((player (current-player game))
+        (result (roll 5 (dice game))))
+    (format t "~a rolled ~a~%" (name player) result)))
 
 (defun tally-points (game)
   "Tally points for the current player based on the current round's

@@ -16,8 +16,9 @@
 (defconstant +points-per-one+ 100)
 (defconstant +points-per-five+ 50)
 (defconstant +points-per-other+ 0)
+(defconstant +minimum-initial-points+ 300)
 
-;;; Game objects
+;;; Player class holds player data for the GREED game.
 
 (defclass player ()
   ((name
@@ -29,35 +30,17 @@
     :accessor points
     :documentation "Number of points assigned to player")))
 
-(defun make-players (num-players)
-  (loop for i from 1 to num-players
-     collect (make-instance 'player :name (format nil "Player ~d" i))))
-
-(defclass dice ()
-  ((numbers
-    :reader numbers
-    :initform nil
-    :documentation "A list of numbers between 1-6")))
-
-(defmethod roll (how-many (object dice))
-  (setf (slot-value object 'numbers)
-        (loop repeat how-many
-           collect (+ 1 (random +sides-per-die+)))))
+;;; Game keeps track of the GREED game state and provides operations
+;;; for playing GREED.
 
 (defclass game ()
   ((num-players
-    :initarg :num-players
-    :documentation "Number of players in the game")
-   (dice
-    :initform (make-instance 'dice)
-    :reader dice
-    :documentation "Dice for playing the game")
+    :initarg :num-players)
+   (current-player
+    :initform 0)
    (players
     :reader players
-    :documentation "A list of game players")
-   (current-player
-    :initform 0
-    :documentation "Index of current player in players list")))
+    :documentation "A list of game players")))
 
 (defmethod initialize-instance :after ((game game) &key num-players)
   (setf (slot-value game 'players)
@@ -75,7 +58,34 @@
       (setf current-player index)
       (nth index players))))
 
-;;; Scoring procedures
+(defmethod display-current-player ((game game))
+  "Displays the current player."
+  (format t "The current player is: ~a~%" (name (current-player game))))
+
+(defmethod display-scores ((game game))
+  "Displays the current score for each player in a tabular format."
+  (dolist (player (players game))
+    (format t "~a ~5d~%" (name player) (points player))))
+
+(defmethod play ((game game))
+  "Play a game round, which roll the dice for the player and calculate
+points. The current player may optionally end this round, assuming
+it's their turn."
+  (let* ((player (current-player game))
+         (player-name (name player))
+         (dice-roll (roll-dice 5))
+         (new-points (score dice-roll)))
+    (format t "~a rolled: ~{~d~^, ~}.~%" player-name dice-roll)
+    (with-accessors ((points points)) player
+      (unless (and (= points 0)
+                   (< new-points +minimum-initial-points+))
+        (format t "~a got ~d points.~%" player-name new-points)
+        (setf points (+ points new-points))))))
+
+(defmacro defgame (name &body body)
+  `(defvar ,name (make-instance 'game :num-players ,@body)))
+
+;;; Scoring procedures & helper functions
 
 (defun count-sides (dice)
   (let ((nums-hash (make-hash-table :test #'eql)))
@@ -104,25 +114,10 @@
          (setf total (+ total (score-num num count points))))
     total))
 
-;; Game procedures
+(defun make-players (num-players)
+  (loop for i from 1 to num-players
+     collect (make-instance 'player :name (format nil "Player ~d" i))))
 
-(defun display-current-player (game)
-  "Displays the current player."
-  (let ((player (current-player game)))
-    (format t "The current player is: ~a~%" (name player))))
-
-(defun display-scores (game)
-  "Displays the current score for each player in a tabular format."
-  (dolist (player (players game))
-    (format t "~a ~4d~%" (name player) (points player))))
-
-(defun roll-dice (game)
-  "Roll the game dice for the current player and add points"
-  (let ((player (current-player game))
-        (result (roll 5 (dice game))))
-    (format t "~a rolled ~a~%" (name player) result)))
-
-(defun tally-points (game)
-  "Tally points for the current player based on the current round's
-  score."
-  (print "TODO: tabulate points"))
+(defun roll-dice (how-many)
+  (loop repeat how-many
+     collect (+ 1 (random +sides-per-die+))))

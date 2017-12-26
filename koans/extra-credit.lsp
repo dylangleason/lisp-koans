@@ -148,9 +148,6 @@ to the next player's turn. Additionally, determine whether the current
 player has started the final round before advancing to the next turn."
   (let ((player (current-player game)))
     (with-slots (current-player final-round-player reroll-dice) game
-      (when (and (null final-round-player)
-                 (>= (points player) +points-to-final-round+))
-        (setf final-round-player player))
       (with-accessors ((points points)
                        (turn-points turn-points)) player
         (unless (and (= points 0)
@@ -158,7 +155,11 @@ player has started the final round before advancing to the next turn."
           (setf points (+ points turn-points)))
         (setf turn-points 0)
         (setf reroll-dice 0)
-        (setf current-player (mod (+ current-player 1) (length (players game))))))
+        (setf current-player (mod (+ current-player 1) (length (players game)))))
+      (when (and (null final-round-player)
+                 (>= (points player) +points-to-final-round+))
+        (format t "FINAL ROUND!~%")
+        (setf final-round-player player)))
     (format t "It is now ~a's turn.~%" (name (current-player game)))))
 
 (defmethod play ((game game))

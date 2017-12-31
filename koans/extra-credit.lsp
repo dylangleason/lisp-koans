@@ -13,14 +13,13 @@
   "The number of sides per die")
 
 (defconstant +nums-in-a-set+ 3
-  "The number of dice rolled of the same number, which constitutes a
-  set")
+  "The number of repeated dice rolled that comprises a set")
 
 (defconstant +points-per-set-of-ones+ 1000
-  "The number of points allocated for three rolled 1's")
+  "The number of points allocated for set of 1's")
 
 (defconstant +points-per-set-multiplier+ 100
-  "Scaling factor for a number that constitutes a set")
+  "Multiplier for each number in a set to obtain points")
 
 (defconstant +points-per-one+ 100
   "The number of points, not part of a set, given for a rolled 1")
@@ -29,14 +28,15 @@
   "The number of points, not part of a set, given for a rolled 5")
 
 (defconstant +points-per-other+ 0
-  "The number of points, not in a set, given for a any other side")
+  "The number of points, not part of a set, given for any number that
+  is not 1 or 5")
 
-(defconstant +minimum-initial-points+ 50
+(defconstant +minimum-initial-points+ 300
   "The minimum number of points to get into a game")
 
-(defconstant +points-to-final-round+ 200
-  "The number of points to reach before the game enters it's final
-  round.")
+(defconstant +points-to-final-round+ 3000
+  "The number of points to reach before the game enters the final
+  round")
 
 ;;; Player class holds player data for the GREED game.
 
@@ -66,7 +66,7 @@
     :initform nil)
    (reroll-dice
     :initform 0)
-   (players ; TODO: use an array instead of a list
+   (players
     :reader players
     :documentation "An array of game players")))
 

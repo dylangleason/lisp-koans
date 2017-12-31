@@ -31,10 +31,10 @@
 (defconstant +points-per-other+ 0
   "The number of points, not in a set, given for a any other side")
 
-(defconstant +minimum-initial-points+ 300
+(defconstant +minimum-initial-points+ 50
   "The minimum number of points to get into a game")
 
-(defconstant +points-to-final-round+ 3000
+(defconstant +points-to-final-round+ 200
   "The number of points to reach before the game enters it's final
   round.")
 
@@ -68,7 +68,7 @@
     :initform 0)
    (players ; TODO: use an array instead of a list
     :reader players
-    :documentation "A list of game players")))
+    :documentation "An array of game players")))
 
 (define-condition invalid-players-arg-error (error)
   ((message
@@ -119,14 +119,18 @@ roll and the number of non-scoring dice, if any."
     (loop for num being the hash-keys of counts
        using (hash-value count)
        summing (score-num num count) into total-points
-       when (and (not (or (= num 5) (= num 1))) (< count 3))
-       summing count into non-scoring-count
+       when (and (not (or (= num 5) (= num 1)))
+                 (< count 3))
+         summing count into non-scoring-count
        finally (return (values total-points non-scoring-count)))))
 
 (defun make-players (num-players)
-  "Make n number of players and return a list."
-  (loop for i from 1 to num-players
-     collect (make-instance 'player :name (format nil "Player ~d" i))))
+  "Return an array of n players."
+  (let ((players (make-array num-players :element-type 'player)))
+    (dotimes (i num-players)
+      (setf (aref players i)
+            (make-instance 'player :name (format nil "Player ~d" (1+ i)))))
+    players))
 
 (defun roll-dice (how-many)
   "Roll n number of dice and return the results in a list."
@@ -134,35 +138,41 @@ roll and the number of non-scoring dice, if any."
      collect (1+ (random +sides-per-die+))))
 
 (defun get-high-scorer (players)
-  "Given a list of players, return the highest scoring player"
-  (labels ((hs (players curr-player)
-             (cond ((null players) curr-player)
-                   ((> (points (first players)) (points curr-player))
-                    (hs (rest players) (first players)))
-                   (t (hs (rest players) curr-player)))))
-    (hs (rest players) (first players))))
-
-
-;; This gets the highest score, but not the player associated with
-;; that score...
-;; (defun get-high-scorer (players)
-;;   (reduce #'max players :key #'points))
+  "Given an array of players, return the highest scoring player."
+  ;; TODO: fix the below algorithm to account for ties.
+  (let ((high-i) (total (array-total-size players)))
+    (dotimes (i total)
+      (when (or (= i 0) (> (points (aref players i))
+                           (points (aref players high-i))))
+        (setf high-i i)))
+    (aref players high-i)))
 
 ;;; Player methods
 
-(defmethod add-turn-points ((player player) new-points)
-  "Add points to the player's score for the current turn, as long as
-they have reached the minimum to get in the game. If the player gets
-zero points for the current roll, they lose all points for the turn"
+(defmethod track-points ((player player) new-points)
+  "Keep a running tally of points to be added to the player's total
+score after the current turn ends. If the player gets zero points for
+the current roll, they lose all points for the turn."
   (with-slots (name points turn-points) player
-    (cond ((> new-points 0)
-           (format t "~a got ~d points.~%" name new-points)
-           (incf turn-points new-points)
-           nil)
-          (t (when (> turn-points 0)
+    (let ((next-turn-p (not (> new-points 0))))
+      (cond (next-turn-p
+             (when (> turn-points 0)
                (format t "~a lost all points for this turn!~%" name))
-             (setf turn-points 0)
-             t))))
+             (setf turn-points 0))
+            (t (format t "~a got ~d points.~%" name new-points)
+               (incf turn-points new-points)))
+      next-turn-p)))
+
+(defmethod add-points ((player player))
+  "Add points that have been accumulated for the turn to the player's
+  total score, only if they have reached the minimum number of points
+  needed to be in the game."
+  (with-accessors ((points points)
+                   (turn-points turn-points)) player
+    (unless (and (= points 0)
+                 (< turn-points +minimum-initial-points+))
+      (incf points turn-points)
+      (setf turn-points 0))))
 
 ;;; Game Methods
 
@@ -172,22 +182,18 @@ zero points for the current roll, they lose all points for the turn"
 
 (defmethod current-player ((game game))
   "Get the current player for the game"
-  ;; TODO: refactor so this uses an array, not a list
-  (nth (slot-value game 'current-player) (players game)))
+  (aref (players game) (slot-value game 'current-player)))
 
 (defmethod display-current-player ((game game))
   "Displays the current player."
   (format t "The current player is: ~a~%" (name (current-player game))))
 
 (defmethod display-scores ((game game))
-  "Displays the current score for each player in a tabular format."
-  (dolist (player (players game))
-    (format t "~a ~5d~%" (name player) (points player))))
-
-(defmethod display-winner ((game game))
-  (with-slots (final-round-player) game
-    (when (eq (curent-player game) final-round-player)
-      (format t "~a is the winner!" (name (get-high-scorer (players game)))))))
+  "Displays the scores for all players in a tabular format."
+  (with-accessors ((players players)) game
+    (dotimes (i (array-total-size players))
+      (let ((player (aref players i)))
+        (format t "~a ~5d~%" (name player) (points player))))))
 
 (defmethod next-turn ((game game))
   "Calculate the accumulated points for this player's turn and advance
@@ -195,21 +201,15 @@ to the next player's turn. Additionally, determine whether the current
 player has started the final round before advancing to the next turn."
   (let ((player (current-player game)))
     (with-slots (current-player final-round-player reroll-dice) game
-      (with-accessors ((points points)
-                       (turn-points turn-points)) player
-        (unless (and (= points 0)
-                     (< turn-points +minimum-initial-points+))
-          (incf points turn-points))
-        (setf turn-points 0)
-        (setf reroll-dice 0)
-        (setf current-player (mod (1+ current-player) (length (players game)))))
+      (add-points player)
+      (setf reroll-dice 0
+            current-player (mod (1+ current-player)
+                                (array-total-size (players game))))
       (when (and (null final-round-player)
                  (>= (points player) +points-to-final-round+))
         (format t "FINAL ROUND!~%")
         (setf final-round-player player))
-      (if (eql player final-round-player)
-          (display-winner game)
-          (format t "It is now ~a's turn.~%" (name (current-player game)))))))
+      (format t "It is now ~a's turn.~%" (name (current-player game))))))
 
 (defmethod play ((game game))
   "Play a game round, which rolls the dice for the player and
@@ -218,13 +218,13 @@ assuming it's their turn."
   (let ((player (current-player game)))
     (with-slots (final-round-player reroll-dice) game
       (if (eql player final-round-player)
-          (display-winner game)
+          (format t "~a is the winner!" (name (get-high-scorer (players game))))
           (let ((player-name (name player))
                 (dice-roll (roll-dice
                             (if (> reroll-dice 0) reroll-dice 5))))
             (format t "~a rolled: ~{~d~^, ~}.~%" player-name dice-roll)
             (multiple-value-bind (new-points remaining-dice) (score dice-roll)
-              (cond ((add-turn-points player new-points)
+              (cond ((track-points player new-points)
                      (format t "~a's turn has ended.~%" player-name)
                      (next-turn game))
                     (t (setf reroll-dice remaining-dice)

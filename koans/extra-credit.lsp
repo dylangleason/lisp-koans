@@ -38,65 +38,70 @@
   "The number of points to reach before the game enters the final
   round")
 
-;;; Player class holds player data for the GREED game.
+;; Classes for encapsulating player and game state
 
 (defclass player ()
   ((name
     :initarg :name
+    :type 'string
     :reader name
-    :documentation "Name of player")
+    :documentation "Name of the player")
    (points
     :initform 0
+    :type 'integer
     :accessor points
     :documentation "Number of points assigned to player")
    (turn-points
     :initform 0
+    :type 'integer
     :accessor turn-points
-    :documentation "Number of points for the current turn")))
+    :documentation "Number of points for the current turn"))
+  (:documentation "A player of the Greed game."))
 
-;;; Game keeps track of the GREED game state and provides operations
-;;; for playing GREED.
+(defun make-players (number-of-players)
+  "Create and return a vector of players."
+  (make-array number-of-players
+              :initial-contents
+              (loop for i from 1 to number-of-players
+                 collect (make-instance 'player :name (format nil "Player ~d" i)))))
 
 (defclass game ()
-  ((num-players
-    :initarg :num-players)
-   (current-player
-    :initform 0)
+  ((current-player-index
+    :initform 0
+    :type 'integer)
    (final-round-player
-    :initform nil)
+    :initform nil
+    :type 'player)
    (reroll-dice
-    :initform 0)
+    :initform 0
+    :type 'integer)
    (players
     :reader players
-    :documentation "An array of game players")))
+    :documentation "An array of game players"))
+  (:documentation "Game keeps track of the Greed game state."))
 
-(define-condition invalid-players-arg-error (error)
-  ((message
-    :initarg :message
-    :initform "must specify number of players as an integer"
-    :reader message)
-   (value
-    :initarg :value
-    :initform nil
-    :reader value)))
-
-(defmacro defgame (name &body body)
-  (let ((num-players (gensym)))
-    `(let ((,num-players ,@body))
-       (when (not (typep ,num-players 'integer))
-         (error 'invalid-players-arg-error :value ,num-players))
-       (defvar ,name (make-instance 'game :num-players ,num-players)))))
+(defun make-game (&optional (number-of-players 2))
+  "Create and return a game instance. Optionally specify a number of
+players, otherwise default to 2 players."
+  (assert (integerp number-of-players)
+          (number-of-players)
+          "The number of players must be an integer")
+  (make-instance 'game :num-players number-of-players))
 
 ;;; Scoring procedures & helper functions
 
 (defun make-counts (dice)
+  "Create and return a hashtable of dice counts based on the roll of
+the dice, where each key is the number on the die, and value is the
+number of times it appeared in the roll."
   (let ((nums-hash (make-hash-table :test #'eql)))
     (dolist (num dice)
-      (let ((count (gethash num nums-hash 0)))
-        (setf (gethash num nums-hash) (1+ count))))
+      (incf (gethash num nums-hash 0)))
     nums-hash))
 
 (defun score-num (num count)
+  "Score a distinct number or face in a dice roll based on the count,
+or number of times, it was rolled."
   (flet ((points-per-set ()
            (if (= num 1)
                +points-per-set-of-ones+
@@ -124,14 +129,6 @@ roll and the number of non-scoring dice, if any."
          summing count into non-scoring-count
        finally (return (values total-points non-scoring-count)))))
 
-(defun make-players (num-players)
-  "Return an array of n players."
-  (let ((players (make-array num-players :element-type 'player)))
-    (dotimes (i num-players)
-      (setf (aref players i)
-            (make-instance 'player :name (format nil "Player ~d" (1+ i)))))
-    players))
-
 (defun roll-dice (how-many)
   "Roll n number of dice and return the results in a list."
   (loop repeat how-many
@@ -147,7 +144,7 @@ roll and the number of non-scoring dice, if any."
         (setf high-i i)))
     (aref players high-i)))
 
-;;; Player methods
+;;; Methods dispatching on `player'
 
 (defmethod track-points ((player player) new-points)
   "Keep a running tally of points to be added to the player's total
@@ -174,15 +171,14 @@ the current roll, they lose all points for the turn."
       (incf points turn-points)
       (setf turn-points 0))))
 
-;;; Game Methods
+;;; Methods dispatching on `game'
 
-(defmethod initialize-instance :after ((game game) &key num-players)
-  (setf (slot-value game 'players)
-        (make-players num-players)))
+(defmethod initialize-instance :after ((game game) &key (num-players 2))
+  (setf (slot-value game 'players) (make-players num-players)))
 
 (defmethod current-player ((game game))
   "Get the current player for the game"
-  (aref (players game) (slot-value game 'current-player)))
+  (aref (players game) (slot-value game 'current-player-index)))
 
 (defmethod display-current-player ((game game))
   "Displays the current player."
@@ -190,21 +186,19 @@ the current roll, they lose all points for the turn."
 
 (defmethod display-scores ((game game))
   "Displays the scores for all players in a tabular format."
-  (with-accessors ((players players)) game
-    (dotimes (i (array-total-size players))
-      (let ((player (aref players i)))
-        (format t "~a ~5d~%" (name player) (points player))))))
+  (loop for player across (players game)
+     do (format t "~a ~5d~%" (name player) (points player))))
 
 (defmethod next-turn ((game game))
   "Calculate the accumulated points for this player's turn and advance
 to the next player's turn. Additionally, determine whether the current
 player has started the final round before advancing to the next turn."
   (let ((player (current-player game)))
-    (with-slots (current-player final-round-player reroll-dice) game
+    (with-slots (current-player-index final-round-player reroll-dice) game
       (add-points player)
       (setf reroll-dice 0
-            current-player (mod (1+ current-player)
-                                (array-total-size (players game))))
+            current-player-index (mod (1+ current-player-index)
+                                      (array-total-size (players game))))
       (when (and (null final-round-player)
                  (>= (points player) +points-to-final-round+))
         (format t "FINAL ROUND!~%")
